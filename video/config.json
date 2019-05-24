@@ -1,0 +1,16 @@
+{   
+    "localIp":"192.168.3.40",
+    "port":20000, 
+    "serialPort": {
+        "baudRate" : 9600,
+        "autoOpen":false,
+        "dataBits":8,
+        "stopBits":1,
+        "flowControl":0
+    }, 
+    "video": ["./video/video1","./video/video2","./video/video3","./video/video4"], 
+    "websocket":{
+        "link":"ws://192.168.3.40",
+        "port":8181
+    }
+}

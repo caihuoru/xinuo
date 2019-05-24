@@ -1,0 +1,329 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <!-- <title>Document</title> -->
+    <style>
+      * {
+        margin: 0px;
+        padding: 0px;
+      }
+      video {
+        display: flex;
+        width: 100%;
+        object-fit: fill;
+        /* object-fit: cover; */
+        height: 100%;
+        background-color: black;
+        /* object-fit:contain */
+      }
+
+      /* 下载按钮 */
+      video::-webkit-media-controls-enclosure {
+        display: hidden;
+      }
+      video::-webkit-media-controls-panel {
+        width: calc(100% + 30px);
+      }
+      .video {
+        width: 100%;
+        height: 100%;
+      }
+      video::-webkit-media-controls {
+        display: none !important;
+      }
+      /*video默认全屏按钮*/
+      video::-webkit-media-controls-fullscreen-button {
+        display: none !important;
+      }
+
+      /*video默认aduio音量按钮*/
+      video::-webkit-media-controls-muted-button {
+        display: none !important;
+      }
+
+      video::-webkit-media-controls-play-button {
+        display: none;
+      }
+      video::-webkit-media-controls-timeline {
+        display: none;
+      }
+      video::-webkit-media-controls-current-time-display {
+        display: none;
+      }
+      video::-webkit-media-controls-time-remaining-display {
+        display: none;
+      }
+      video::-webkit-media-controls-mute-button {
+        display: none;
+      }
+      video::-webkit-media-controls-toggle-closed-captions-button {
+        display: none;
+      }
+      video::-webkit-media-controls-volume-slider {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="video">
+      <video
+        id="video"
+        src="./video/video0.mp4"
+        controls="controls"
+        controlsList="nodownload"
+        autoplay
+        webkit-playsinline="true"
+        poster="//tvax1.sinaimg.cn/crop.42.0.968.968.180/007zMKRxly8fz89na7hcsj30u40qwdgl.jpg"
+      >
+        您的设备不支持 video 标签。
+      </video>
+    </div>
+    <a class="gj" style="display:none" href="./video/shutdown.exe"> </a>
+  </body>
+  <!-- <script>
+    // 解决electron jquery不生效的问题
+    window.nodeRequire = require;
+    delete window.require;
+    delete window.exports;
+    delete window.module;
+  </script> -->
+  <script src="./jquery-2.1.4.min.js"></script>
+  <script src="./renderer.js"></script>
+  <script>
+    if (typeof module === "object") {
+      window.jQuery = window.$ = module.exports;
+    }
+  </script>
+  <script>
+    //监听高度变化
+    $(window).resize(function() {
+      $(".video video").css({ height: $(window).height() });
+    });
+    $(".video video").css({ height: $(window).height() });
+
+    var ws = new WebSocket("ws://192.168.1.186:8181");
+
+    ws.onopen = function(){
+      ws.send(
+        JSON.stringify({
+          index: 0,
+          d: true,
+          status: 0
+        })
+      );
+      
+      // websocket
+      websocket_online();
+    }
+
+    var default_video = "./video/video0.mp4"; //默认视频，播放结束回到默认视频
+    var index = 0; //默认是0
+    var video_link; //视频连接
+    var volume = 1; //默认是1
+    var d = true;
+    var duankai = false;
+    var Media = document.getElementById("video");
+    console.log(Media.play);
+    // index=视频索引
+    //status=视频状态
+
+    // Media.play();
+    ws.onclose = function() {
+      // 关闭 websocket
+      console.log("连接已关闭...");
+      duankai = setInterval(function() {
+        again();
+      }, 1000);
+    };
+
+    //客户端开始请求数据事件
+    Media.addEventListener("loadstart", function(event) {
+      console.log("客户端开始请求数据");
+    });
+
+    //客户端暂停事件
+    Media.addEventListener("pause", function(event) {});
+
+    //客户端播放按钮事件
+    Media.addEventListener("play", function(event) {
+      websocket_online();
+    });
+
+    //请求数据遇到错误事件
+    Media.addEventListener("error", function(event) {
+      console.log("请求数据遇到错误");
+      Media.currentTime = timeDisplay;
+    });
+
+    //中途加载暂停
+    Media.addEventListener("canplay", function(event) {
+      console.log("可以播放，但中途可能因为加载而暂停");
+      // Media.play();
+    });
+
+    Media.addEventListener("stalled", function(event) {
+      console.log("没有网速");
+      // Media.play();
+      Media.currentTime = timeDisplay;
+    });
+
+    //寻找中
+    Media.addEventListener("seeking", function(event) {
+      console.log("寻找中");
+    });
+
+    //等待数据，并非错误
+    Media.addEventListener("waiting", function(event) {
+      console.log("等待数据，并非错误~~");
+      // if(timeDisplay){
+      //   Media.currentTime = timeDisplay;
+      // }
+    });
+
+    // 播放结束事件
+    Media.addEventListener("ended", function(event) {
+      console.log("播放结束");
+      //  回到播放前
+      timeDisplay = 0;
+      if (index < 5 && index != 0) {
+        index += 1;
+        ws.send(
+          JSON.stringify({
+            index: index
+          })
+        );
+      } else {
+        index = 0;
+        ws.send(
+          JSON.stringify({
+            index: index,
+            d:true
+          })
+        );
+      }
+      default_video = "./video/video" + index + ".mp4";
+
+      $(".video video").attr("src", default_video);
+      video_link = default_video;
+      // 结束后从头播放
+      Media.play();
+    });
+    // 没有网速事件
+
+    var send_off = true;
+    // 播放时间
+    var timeDisplay;
+    // 监听播放进度
+    Media.addEventListener(
+      "timeupdate",
+      function() {
+        //用秒数来显示当前播放进度
+        timeDisplay = Math.floor(Media.currentTime);
+        // console.log(Math.floor(Media.currentTime))
+        var video_src = $("#video").attr("src");
+        if (video_src == "./video/video5.mp4") {
+          if (Media.currentTime >= Media.duration - 18) {
+            if (send_off) {
+              send_off = false;
+              ws.send(
+                JSON.stringify({
+                  d: d,
+                  volume: Media.volume
+                })
+              );
+            } else {
+            }
+          } else {
+            send_off = true;
+          }
+        } else {
+          send_off = true;
+        }
+        console.log(Media.currentTime)
+        console.log(Media.duration)
+
+        // console.log(video_src)
+        // // if()
+      },
+      false
+    );
+    // 禁止下载视频
+    $(".video video").bind("contextmenu", function() {
+      return false;
+    });
+
+    //关闭声音
+    function enableMute() {
+      Media.muted = true;
+    }
+    //打开声音
+    function disableMute() {
+      Media.muted = false;
+      btn[0].disabled = false;
+      btn[1].disabled = true;
+    }
+
+    //拖动range进行调音量大小
+    function setvalue() {
+      Media.volume = 1; //默认声音最大
+      Media.muted = false;
+      // Media.webkitrequestFullscreen();
+    }
+    setvalue();
+
+    // websocket同步
+    function websocket_online() {
+      ws.onmessage = function(evt) {
+        if (duankai) {
+          clearInterval(duankai);
+        }
+        var data = JSON.parse(evt.data);
+        console.log(data);
+        //   $(".video video").attr("src",data.link);
+        index = data.index;
+        if (data.reset) {
+          Media.currentTime = 0;
+        }
+        if (data.volume || data.volume == 0) {
+          volume = data.volume;
+          Media.volume = volume;
+          console.log(volume);
+        }
+        if (data.shutdown) {
+          $(".gj").trigger();
+        }
+
+        if (data.link) {
+          console.log(data.link);
+          if (data.link != video_link) {
+            $(".video video").attr("src", data.link);
+            video_link = data.link;
+          }
+        }
+
+        if (data.status == 2) {
+          Media.pause();
+          console.log("暂停");
+        } else if (data.status == 1) {
+          setTimeout(function() {
+            Media.play();
+            console.log("播放");
+          }, 100);
+        } else {
+          if (data.status == 2) {
+            Media.pause();
+            console.log("暂停");
+          } else if (data.status == 1) {
+            setTimeout(function() {
+              Media.play();
+              console.log("播放");
+            }, 100);
+          }
+        }
+      };
+    }
+  </script>
+</html>
